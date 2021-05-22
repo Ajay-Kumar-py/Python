@@ -63,7 +63,7 @@ def comboclick(event):
     myCombo_dis.bind("<<ComboboxSelected>>", comboclickdis)
     myCombo_dis.grid(row=4, column=1)
 
-    #sdds
+    #sddshg
 
 for i in state_ids['states']:
     st_name.append( i['state_name'])
