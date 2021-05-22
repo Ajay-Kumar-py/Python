@@ -57,7 +57,7 @@ def comboclick(event):
     for i in dist_id_res['districts']:
 
         dist_name.append(i['district_name'])
-    #print("diist",dist_name)
+    #print("diist",dist_name)gfg
 
     myCombo_dis = ttk.Combobox(root, value=dist_name, textvariable=dist_value)
     myCombo_dis.bind("<<ComboboxSelected>>", comboclickdis)
