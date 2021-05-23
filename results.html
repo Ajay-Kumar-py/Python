@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function find_all(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sort_column(elem) {
+    toggle_sort_states(elem);
+    var colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    var key;
+    if (elem.classList.contains('numeric')) {
+        key = key_num;
+    } else if (elem.classList.contains('result')) {
+        key = key_result;
+    } else {
+        key = key_alpha;
+    }
+    sort_table(elem, key(colIndex));
+}
+
+function show_all_extras() {
+    find_all('.col-result').forEach(show_extras);
+}
+
+function hide_all_extras() {
+    find_all('.col-result').forEach(hide_extras);
+}
+
+function show_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.remove("collapsed");
+    expandcollapse.classList.remove("expander");
+    expandcollapse.classList.add("collapser");
+}
+
+function hide_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.add("collapsed");
+    expandcollapse.classList.remove("collapser");
+    expandcollapse.classList.add("expander");
+}
+
+function show_filters() {
+    var filter_items = document.getElementsByClassName('filter');
+    for (var i = 0; i < filter_items.length; i++)
+        filter_items[i].hidden = false;
+}
+
+function add_collapse() {
+    // Add links for show/hide all
+    var resulttable = find('table#results-table');
+    var showhideall = document.createElement("p");
+    showhideall.innerHTML = '<a href="javascript:show_all_extras()">Show all details</a> / ' +
+                            '<a href="javascript:hide_all_extras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    find_all('.col-result').forEach(function(elem) {
+        var collapsed = get_query_parameter('collapsed') || 'Passed';
+        var extras = elem.parentNode.nextElementSibling;
+        var expandcollapse = document.createElement("span");
+        if (extras.classList.contains("collapsed")) {
+            expandcollapse.classList.add("expander")
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add("collapsed");
+            expandcollapse.classList.add("expander");
+        } else {
+            expandcollapse.classList.add("collapser");
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener("click", function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains("collapsed")) {
+                show_extras(event.currentTarget);
+            } else {
+                hide_extras(event.currentTarget);
+            }
+        });
+    })
+}
+
+function get_query_parameter(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () {
+    reset_sort_headers();
+
+    add_collapse();
+
+    show_filters();
+
+    sort_column(find('.initial-sort'));
+
+    find_all('.sortable').forEach(function(elem) {
+        elem.addEventListener("click",
+                              function(event) {
+                                  sort_column(elem);
+                              }, false)
+    });
+
+};
+
+function sort_table(clicked, key_func) {
+    var rows = find_all('.results-table-row');
+    var reversed = !clicked.classList.contains('asc');
+    var sorted_rows = sort(rows, key_func, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    var thead = document.getElementById("results-table-head");
+    document.getElementById('results-table').remove();
+    var parent = document.createElement("table");
+    parent.id = "results-table";
+    parent.appendChild(thead);
+    sorted_rows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName("BODY")[0].appendChild(parent);
+}
+
+function sort(items, key_func, reversed) {
+    var sort_array = items.map(function(item, i) {
+        return [key_func(item), i];
+    });
+
+    sort_array.sort(function(a, b) {
+        var key_a = a[0];
+        var key_b = b[0];
+
+        if (key_a == key_b) return 0;
+
+        if (reversed) {
+            return (key_a < key_b ? 1 : -1);
+        } else {
+            return (key_a > key_b ? 1 : -1);
+        }
+    });
+
+    return sort_array.map(function(item) {
+        var index = item[1];
+        return items[index];
+    });
+}
+
+function key_alpha(col_index) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[col_index].firstChild.data.toLowerCase();
+    };
+}
+
+function key_num(col_index) {
+    return function(elem) {
+        return parseFloat(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function key_result(col_index) {
+    return function(elem) {
+        var strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+                       'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function reset_sort_headers() {
+    find_all('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    find_all('.sortable').forEach(function(elem) {
+        var icon = document.createElement("div");
+        icon.className = "sort-icon";
+        icon.textContent = "vvv";
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove("desc", "active");
+        elem.classList.add("asc", "inactive");
+    });
+}
+
+function toggle_sort_states(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        reset_sort_headers();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function is_all_rows_hidden(value) {
+  return value.hidden == false;
+}
+
+function filter_table(elem) {
+    var outcome_att = "data-test-result";
+    var outcome = elem.getAttribute(outcome_att);
+    class_outcome = outcome + " results-table-row";
+    var outcome_rows = document.getElementsByClassName(class_outcome);
+
+    for(var i = 0; i < outcome_rows.length; i++){
+        outcome_rows[i].hidden = !elem.checked;
+    }
+
+    var rows = find_all('.results-table-row').filter(is_all_rows_hidden);
+    var all_rows_hidden = rows.length == 0 ? true : false;
+    var not_found_message = document.getElementById("not-found-message");
+    not_found_message.hidden = !all_rows_hidden;
+}
+</script>
+    <h1>results.html</h1>
+    <p>Report generated on 03-Jun-2020 at 15:48:16 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v2.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.0", "py": "1.8.0", "pytest": "5.2.2"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.18362-SP0</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"html": "2.1.1", "metadata": "1.9.0"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.7.4</td></tr></table>
+    <h2>Summary</h2>
+    <p>3 tests ran in 2.22 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="passed">0 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="failed">3 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable numeric" col="duration">Duration</th>
+          <th>Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">tests/sports_car/body/test_body.py::test_can_nav_to_body_page</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;selenium.webdriver.chrome.service.Service object at 0x0000011C6D102F88&gt;<br/><br/>    def start(self):<br/>        &quot;&quot;&quot;<br/>        Starts the Service.<br/>    <br/>        :Exceptions:<br/>         - WebDriverException : Raised either when it can&#x27;t start the service<br/>           or when it can&#x27;t connect to the service<br/>        &quot;&quot;&quot;<br/>        try:<br/>            cmd = [self.path]<br/>            cmd.extend(self.command_line_args())<br/>            self.process = subprocess.Popen(cmd, env=self.env,<br/>                                            close_fds=platform.system() != &#x27;Windows&#x27;,<br/>                                            stdout=self.log_file,<br/>                                            stderr=self.log_file,<br/>&gt;                                           stdin=PIPE)<br/><br/>myfiles\lib\site-packages\selenium\webdriver\common\service.py:76: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;subprocess.Popen object at 0x0000011C6D4063C8&gt;, args = [&#x27;chromedriver&#x27;, &#x27;--port=58632&#x27;], bufsize = -1, executable = None, stdin = -1, stdout = -3, stderr = -3, preexec_fn = None<br/>close_fds = False, shell = False, cwd = None<br/>env = environ({&#x27;GOOGLE_DEFAULT_CLIENT_SECRET&#x27;: &#x27;no&#x27;, &#x27;LOCALAPPDATA&#x27;: &#x27;C:\\Users\\ajay.kumar\\AppData\\Local&#x27;, &#x27;PROGRAMFILES&#x27;...T&#x27;, &#x27;OS&#x27;: &#x27;Windows_NT&#x27;, &#x27;PYTEST_CURRENT_TEST&#x27;: &#x27;tests/sports_car/body/test_body.py::test_can_nav_to_body_page (call)&#x27;})<br/>universal_newlines = None, startupinfo = None, creationflags = 0, restore_signals = True, start_new_session = False, pass_fds = ()<br/><br/>    def __init__(self, args, bufsize=-1, executable=None,<br/>                 stdin=None, stdout=None, stderr=None,<br/>                 preexec_fn=None, close_fds=True,<br/>                 shell=False, cwd=None, env=None, universal_newlines=None,<br/>                 startupinfo=None, creationflags=0,<br/>                 restore_signals=True, start_new_session=False,<br/>                 pass_fds=(), *, encoding=None, errors=None, text=None):<br/>        &quot;&quot;&quot;Create new Popen instance.&quot;&quot;&quot;<br/>        _cleanup()<br/>        # Held while anything is calling waitpid before returncode has been<br/>        # updated to prevent clobbering returncode if wait() or poll() are<br/>        # called from multiple threads at once.  After acquiring the lock,<br/>        # code must re-check self.returncode to see if another thread just<br/>        # finished a waitpid() call.<br/>        self._waitpid_lock = threading.Lock()<br/>    <br/>        self._input = None<br/>        self._communication_started = False<br/>        if bufsize is None:<br/>            bufsize = -1  # Restore default<br/>        if not isinstance(bufsize, int):<br/>            raise TypeError(&quot;bufsize must be an integer&quot;)<br/>    <br/>        if _mswindows:<br/>            if preexec_fn is not None:<br/>                raise ValueError(&quot;preexec_fn is not supported on Windows &quot;<br/>                                 &quot;platforms&quot;)<br/>        else:<br/>            # POSIX<br/>            if pass_fds and not close_fds:<br/>                warnings.warn(&quot;pass_fds overriding close_fds.&quot;, RuntimeWarning)<br/>                close_fds = True<br/>            if startupinfo is not None:<br/>                raise ValueError(&quot;startupinfo is only supported on Windows &quot;<br/>                                 &quot;platforms&quot;)<br/>            if creationflags != 0:<br/>                raise ValueError(&quot;creationflags is only supported on Windows &quot;<br/>                                 &quot;platforms&quot;)<br/>    <br/>        self.args = args<br/>        self.stdin = None<br/>        self.stdout = None<br/>        self.stderr = None<br/>        self.pid = None<br/>        self.returncode = None<br/>        self.encoding = encoding<br/>        self.errors = errors<br/>    <br/>        # Validate the combinations of text and universal_newlines<br/>        if (text is not None and universal_newlines is not None<br/>            and bool(universal_newlines) != bool(text)):<br/>            raise SubprocessError(&#x27;Cannot disambiguate when both text &#x27;<br/>                                  &#x27;and universal_newlines are supplied but &#x27;<br/>                                  &#x27;different. Pass one or the other.&#x27;)<br/>    <br/>        # Input and output objects. The general principle is like<br/>        # this:<br/>        #<br/>        # Parent                   Child<br/>        # ------                   -----<br/>        # p2cwrite   ---stdin---&gt;  p2cread<br/>        # c2pread    &lt;--stdout---  c2pwrite<br/>        # errread    &lt;--stderr---  errwrite<br/>        #<br/>        # On POSIX, the child objects are file descriptors.  On<br/>        # Windows, these are Windows file handles.  The parent objects<br/>        # are file descriptors on both platforms.  The parent objects<br/>        # are -1 when not using PIPEs. The child objects are -1<br/>        # when not redirecting.<br/>    <br/>        (p2cread, p2cwrite,<br/>         c2pread, c2pwrite,<br/>         errread, errwrite) = self._get_handles(stdin, stdout, stderr)<br/>    <br/>        # We wrap OS handles *before* launching the child, otherwise a<br/>        # quickly terminating child could make our fds unwrappable<br/>        # (see #8458).<br/>    <br/>        if _mswindows:<br/>            if p2cwrite != -1:<br/>                p2cwrite = msvcrt.open_osfhandle(p2cwrite.Detach(), 0)<br/>            if c2pread != -1:<br/>                c2pread = msvcrt.open_osfhandle(c2pread.Detach(), 0)<br/>            if errread != -1:<br/>                errread = msvcrt.open_osfhandle(errread.Detach(), 0)<br/>    <br/>        self.text_mode = encoding or errors or text or universal_newlines<br/>    <br/>        # How long to resume waiting on a child after the first ^C.<br/>        # There is no right value for this.  The purpose is to be polite<br/>        # yet remain good for interactive users trying to exit a tool.<br/>        self._sigint_wait_secs = 0.25  # 1/xkcd221.getRandomNumber()<br/>    <br/>        self._closed_child_pipe_fds = False<br/>    <br/>        try:<br/>            if p2cwrite != -1:<br/>                self.stdin = io.open(p2cwrite, &#x27;wb&#x27;, bufsize)<br/>                if self.text_mode:<br/>                    self.stdin = io.TextIOWrapper(self.stdin, write_through=True,<br/>                            line_buffering=(bufsize == 1),<br/>                            encoding=encoding, errors=errors)<br/>            if c2pread != -1:<br/>                self.stdout = io.open(c2pread, &#x27;rb&#x27;, bufsize)<br/>                if self.text_mode:<br/>                    self.stdout = io.TextIOWrapper(self.stdout,<br/>                            encoding=encoding, errors=errors)<br/>            if errread != -1:<br/>                self.stderr = io.open(errread, &#x27;rb&#x27;, bufsize)<br/>                if self.text_mode:<br/>                    self.stderr = io.TextIOWrapper(self.stderr,<br/>                            encoding=encoding, errors=errors)<br/>    <br/>            self._execute_child(args, executable, preexec_fn, close_fds,<br/>                                pass_fds, cwd, env,<br/>                                startupinfo, creationflags, shell,<br/>                                p2cread, p2cwrite,<br/>                                c2pread, c2pwrite,<br/>                                errread, errwrite,<br/>&gt;                               restore_signals, start_new_session)<br/><br/>..\..\AppData\Local\Programs\Python\Python37\lib\subprocess.py:775: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;subprocess.Popen object at 0x0000011C6D4063C8&gt;, args = &#x27;chromedriver --port=58632&#x27;, executable = None, preexec_fn = None, close_fds = False, pass_fds = (), cwd = None<br/>env = environ({&#x27;GOOGLE_DEFAULT_CLIENT_SECRET&#x27;: &#x27;no&#x27;, &#x27;LOCALAPPDATA&#x27;: &#x27;C:\\Users\\ajay.kumar\\AppData\\Local&#x27;, &#x27;PROGRAMFILES&#x27;...T&#x27;, &#x27;OS&#x27;: &#x27;Windows_NT&#x27;, &#x27;PYTEST_CURRENT_TEST&#x27;: &#x27;tests/sports_car/body/test_body.py::test_can_nav_to_body_page (call)&#x27;})<br/>startupinfo = &lt;subprocess.STARTUPINFO object at 0x0000011C6D406508&gt;, creationflags = 0, shell = False, p2cread = Handle(624), p2cwrite = 14, c2pread = -1, c2pwrite = Handle(880)<br/>errread = -1, errwrite = Handle(796), unused_restore_signals = True, unused_start_new_session = False<br/><br/>    def _execute_child(self, args, executable, preexec_fn, close_fds,<br/>                       pass_fds, cwd, env,<br/>                       startupinfo, creationflags, shell,<br/>                       p2cread, p2cwrite,<br/>                       c2pread, c2pwrite,<br/>                       errread, errwrite,<br/>                       unused_restore_signals, unused_start_new_session):<br/>        &quot;&quot;&quot;Execute program (MS Windows version)&quot;&quot;&quot;<br/>    <br/>        assert not pass_fds, &quot;pass_fds not supported on Windows.&quot;<br/>    <br/>        if not isinstance(args, str):<br/>            args = list2cmdline(args)<br/>    <br/>        # Process startup details<br/>        if startupinfo is None:<br/>            startupinfo = STARTUPINFO()<br/>        else:<br/>            # bpo-34044: Copy STARTUPINFO since it is modified above,<br/>            # so the caller can reuse it multiple times.<br/>            startupinfo = startupinfo._copy()<br/>    <br/>        use_std_handles = -1 not in (p2cread, c2pwrite, errwrite)<br/>        if use_std_handles:<br/>            startupinfo.dwFlags |= _winapi.STARTF_USESTDHANDLES<br/>            startupinfo.hStdInput = p2cread<br/>            startupinfo.hStdOutput = c2pwrite<br/>            startupinfo.hStdError = errwrite<br/>    <br/>        attribute_list = startupinfo.lpAttributeList<br/>        have_handle_list = bool(attribute_list and<br/>                                &quot;handle_list&quot; in attribute_list and<br/>                                attribute_list[&quot;handle_list&quot;])<br/>    <br/>        # If we were given an handle_list or need to create one<br/>        if have_handle_list or (use_std_handles and close_fds):<br/>            if attribute_list is None:<br/>                attribute_list = startupinfo.lpAttributeList = {}<br/>            handle_list = attribute_list[&quot;handle_list&quot;] = \<br/>                list(attribute_list.get(&quot;handle_list&quot;, []))<br/>    <br/>            if use_std_handles:<br/>                handle_list += [int(p2cread), int(c2pwrite), int(errwrite)]<br/>    <br/>            handle_list[:] = self._filter_handle_list(handle_list)<br/>    <br/>            if handle_list:<br/>                if not close_fds:<br/>                    warnings.warn(&quot;startupinfo.lpAttributeList[&#x27;handle_list&#x27;] &quot;<br/>                                  &quot;overriding close_fds&quot;, RuntimeWarning)<br/>    <br/>                # When using the handle_list we always request to inherit<br/>                # handles but the only handles that will be inherited are<br/>                # the ones in the handle_list<br/>                close_fds = False<br/>    <br/>        if shell:<br/>            startupinfo.dwFlags |= _winapi.STARTF_USESHOWWINDOW<br/>            startupinfo.wShowWindow = _winapi.SW_HIDE<br/>            comspec = os.environ.get(&quot;COMSPEC&quot;, &quot;cmd.exe&quot;)<br/>            args = &#x27;{} /c &quot;{}&quot;&#x27;.format (comspec, args)<br/>    <br/>        # Start the process<br/>        try:<br/>            hp, ht, pid, tid = _winapi.CreateProcess(executable, args,<br/>                                     # no special security<br/>                                     None, None,<br/>                                     int(not close_fds),<br/>                                     creationflags,<br/>                                     env,<br/>                                     os.fspath(cwd) if cwd is not None else None,<br/>&gt;                                    startupinfo)<br/><span class="error">E                                    FileNotFoundError: [WinError 2] The system cannot find the file specified</span><br/><br/>..\..\AppData\Local\Programs\Python\Python37\lib\subprocess.py:1178: FileNotFoundError<br/><br/>During handling of the above exception, another exception occurred:<br/><br/>    @mark.ui<br/>    @mark.body<br/>    @mark.smoke<br/>    def test_can_nav_to_body_page():<br/>&gt;       browser = webdriver.Chrome()<br/><br/>tests\sports_car\body\test_body.py:12: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>myfiles\lib\site-packages\selenium\webdriver\chrome\webdriver.py:73: in __init__<br/>    self.service.start()<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.chrome.service.Service object at 0x0000011C6D102F88&gt;<br/><br/>    def start(self):<br/>        &quot;&quot;&quot;<br/>        Starts the Service.<br/>    <br/>        :Exceptions:<br/>         - WebDriverException : Raised either when it can&#x27;t start the service<br/>           or when it can&#x27;t connect to the service<br/>        &quot;&quot;&quot;<br/>        try:<br/>            cmd = [self.path]<br/>            cmd.extend(self.command_line_args())<br/>            self.process = subprocess.Popen(cmd, env=self.env,<br/>                                            close_fds=platform.system() != &#x27;Windows&#x27;,<br/>                                            stdout=self.log_file,<br/>                                            stderr=self.log_file,<br/>                                            stdin=PIPE)<br/>        except TypeError:<br/>            raise<br/>        except OSError as err:<br/>            if err.errno == errno.ENOENT:<br/>                raise WebDriverException(<br/>                    &quot;&#x27;%s&#x27; executable needs to be in PATH. %s&quot; % (<br/>&gt;                       os.path.basename(self.path), self.start_error_message)<br/><span class="error">E                       selenium.common.exceptions.WebDriverException: Message: &#x27;chromedriver&#x27; executable needs to be in PATH. Please see https://sites.google.com/a/chromium.org/chromedriver/home</span><br/><br/>myfiles\lib\site-packages\selenium\webdriver\common\service.py:83: WebDriverException<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">tests/sports_car/engine/test_engine.py::test_can_nav_to_engine_page</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;selenium.webdriver.chrome.service.Service object at 0x0000011C6CEB6688&gt;<br/><br/>    def start(self):<br/>        &quot;&quot;&quot;<br/>        Starts the Service.<br/>    <br/>        :Exceptions:<br/>         - WebDriverException : Raised either when it can&#x27;t start the service<br/>           or when it can&#x27;t connect to the service<br/>        &quot;&quot;&quot;<br/>        try:<br/>            cmd = [self.path]<br/>            cmd.extend(self.command_line_args())<br/>            self.process = subprocess.Popen(cmd, env=self.env,<br/>                                            close_fds=platform.system() != &#x27;Windows&#x27;,<br/>                                            stdout=self.log_file,<br/>                                            stderr=self.log_file,<br/>&gt;                                           stdin=PIPE)<br/><br/>myfiles\lib\site-packages\selenium\webdriver\common\service.py:76: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;subprocess.Popen object at 0x0000011C6CEB64C8&gt;, args = [&#x27;chromedriver&#x27;, &#x27;--port=58634&#x27;], bufsize = -1, executable = None, stdin = -1, stdout = -3, stderr = -3, preexec_fn = None<br/>close_fds = False, shell = False, cwd = None<br/>env = environ({&#x27;GOOGLE_DEFAULT_CLIENT_SECRET&#x27;: &#x27;no&#x27;, &#x27;LOCALAPPDATA&#x27;: &#x27;C:\\Users\\ajay.kumar\\AppData\\Local&#x27;, &#x27;PROGRAMFILES&#x27;...S&#x27;: &#x27;Windows_NT&#x27;, &#x27;PYTEST_CURRENT_TEST&#x27;: &#x27;tests/sports_car/engine/test_engine.py::test_can_nav_to_engine_page (call)&#x27;})<br/>universal_newlines = None, startupinfo = None, creationflags = 0, restore_signals = True, start_new_session = False, pass_fds = ()<br/><br/>    def __init__(self, args, bufsize=-1, executable=None,<br/>                 stdin=None, stdout=None, stderr=None,<br/>                 preexec_fn=None, close_fds=True,<br/>                 shell=False, cwd=None, env=None, universal_newlines=None,<br/>                 startupinfo=None, creationflags=0,<br/>                 restore_signals=True, start_new_session=False,<br/>                 pass_fds=(), *, encoding=None, errors=None, text=None):<br/>        &quot;&quot;&quot;Create new Popen instance.&quot;&quot;&quot;<br/>        _cleanup()<br/>        # Held while anything is calling waitpid before returncode has been<br/>        # updated to prevent clobbering returncode if wait() or poll() are<br/>        # called from multiple threads at once.  After acquiring the lock,<br/>        # code must re-check self.returncode to see if another thread just<br/>        # finished a waitpid() call.<br/>        self._waitpid_lock = threading.Lock()<br/>    <br/>        self._input = None<br/>        self._communication_started = False<br/>        if bufsize is None:<br/>            bufsize = -1  # Restore default<br/>        if not isinstance(bufsize, int):<br/>            raise TypeError(&quot;bufsize must be an integer&quot;)<br/>    <br/>        if _mswindows:<br/>            if preexec_fn is not None:<br/>                raise ValueError(&quot;preexec_fn is not supported on Windows &quot;<br/>                                 &quot;platforms&quot;)<br/>        else:<br/>            # POSIX<br/>            if pass_fds and not close_fds:<br/>                warnings.warn(&quot;pass_fds overriding close_fds.&quot;, RuntimeWarning)<br/>                close_fds = True<br/>            if startupinfo is not None:<br/>                raise ValueError(&quot;startupinfo is only supported on Windows &quot;<br/>                                 &quot;platforms&quot;)<br/>            if creationflags != 0:<br/>                raise ValueError(&quot;creationflags is only supported on Windows &quot;<br/>                                 &quot;platforms&quot;)<br/>    <br/>        self.args = args<br/>        self.stdin = None<br/>        self.stdout = None<br/>        self.stderr = None<br/>        self.pid = None<br/>        self.returncode = None<br/>        self.encoding = encoding<br/>        self.errors = errors<br/>    <br/>        # Validate the combinations of text and universal_newlines<br/>        if (text is not None and universal_newlines is not None<br/>            and bool(universal_newlines) != bool(text)):<br/>            raise SubprocessError(&#x27;Cannot disambiguate when both text &#x27;<br/>                                  &#x27;and universal_newlines are supplied but &#x27;<br/>                                  &#x27;different. Pass one or the other.&#x27;)<br/>    <br/>        # Input and output objects. The general principle is like<br/>        # this:<br/>        #<br/>        # Parent                   Child<br/>        # ------                   -----<br/>        # p2cwrite   ---stdin---&gt;  p2cread<br/>        # c2pread    &lt;--stdout---  c2pwrite<br/>        # errread    &lt;--stderr---  errwrite<br/>        #<br/>        # On POSIX, the child objects are file descriptors.  On<br/>        # Windows, these are Windows file handles.  The parent objects<br/>        # are file descriptors on both platforms.  The parent objects<br/>        # are -1 when not using PIPEs. The child objects are -1<br/>        # when not redirecting.<br/>    <br/>        (p2cread, p2cwrite,<br/>         c2pread, c2pwrite,<br/>         errread, errwrite) = self._get_handles(stdin, stdout, stderr)<br/>    <br/>        # We wrap OS handles *before* launching the child, otherwise a<br/>        # quickly terminating child could make our fds unwrappable<br/>        # (see #8458).<br/>    <br/>        if _mswindows:<br/>            if p2cwrite != -1:<br/>                p2cwrite = msvcrt.open_osfhandle(p2cwrite.Detach(), 0)<br/>            if c2pread != -1:<br/>                c2pread = msvcrt.open_osfhandle(c2pread.Detach(), 0)<br/>            if errread != -1:<br/>                errread = msvcrt.open_osfhandle(errread.Detach(), 0)<br/>    <br/>        self.text_mode = encoding or errors or text or universal_newlines<br/>    <br/>        # How long to resume waiting on a child after the first ^C.<br/>        # There is no right value for this.  The purpose is to be polite<br/>        # yet remain good for interactive users trying to exit a tool.<br/>        self._sigint_wait_secs = 0.25  # 1/xkcd221.getRandomNumber()<br/>    <br/>        self._closed_child_pipe_fds = False<br/>    <br/>        try:<br/>            if p2cwrite != -1:<br/>                self.stdin = io.open(p2cwrite, &#x27;wb&#x27;, bufsize)<br/>                if self.text_mode:<br/>                    self.stdin = io.TextIOWrapper(self.stdin, write_through=True,<br/>                            line_buffering=(bufsize == 1),<br/>                            encoding=encoding, errors=errors)<br/>            if c2pread != -1:<br/>                self.stdout = io.open(c2pread, &#x27;rb&#x27;, bufsize)<br/>                if self.text_mode:<br/>                    self.stdout = io.TextIOWrapper(self.stdout,<br/>                            encoding=encoding, errors=errors)<br/>            if errread != -1:<br/>                self.stderr = io.open(errread, &#x27;rb&#x27;, bufsize)<br/>                if self.text_mode:<br/>                    self.stderr = io.TextIOWrapper(self.stderr,<br/>                            encoding=encoding, errors=errors)<br/>    <br/>            self._execute_child(args, executable, preexec_fn, close_fds,<br/>                                pass_fds, cwd, env,<br/>                                startupinfo, creationflags, shell,<br/>                                p2cread, p2cwrite,<br/>                                c2pread, c2pwrite,<br/>                                errread, errwrite,<br/>&gt;                               restore_signals, start_new_session)<br/><br/>..\..\AppData\Local\Programs\Python\Python37\lib\subprocess.py:775: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;subprocess.Popen object at 0x0000011C6CEB64C8&gt;, args = &#x27;chromedriver --port=58634&#x27;, executable = None, preexec_fn = None, close_fds = False, pass_fds = (), cwd = None<br/>env = environ({&#x27;GOOGLE_DEFAULT_CLIENT_SECRET&#x27;: &#x27;no&#x27;, &#x27;LOCALAPPDATA&#x27;: &#x27;C:\\Users\\ajay.kumar\\AppData\\Local&#x27;, &#x27;PROGRAMFILES&#x27;...S&#x27;: &#x27;Windows_NT&#x27;, &#x27;PYTEST_CURRENT_TEST&#x27;: &#x27;tests/sports_car/engine/test_engine.py::test_can_nav_to_engine_page (call)&#x27;})<br/>startupinfo = &lt;subprocess.STARTUPINFO object at 0x0000011C6CEB6608&gt;, creationflags = 0, shell = False, p2cread = Handle(900), p2cwrite = 14, c2pread = -1, c2pwrite = Handle(904)<br/>errread = -1, errwrite = Handle(908), unused_restore_signals = True, unused_start_new_session = False<br/><br/>    def _execute_child(self, args, executable, preexec_fn, close_fds,<br/>                       pass_fds, cwd, env,<br/>                       startupinfo, creationflags, shell,<br/>                       p2cread, p2cwrite,<br/>                       c2pread, c2pwrite,<br/>                       errread, errwrite,<br/>                       unused_restore_signals, unused_start_new_session):<br/>        &quot;&quot;&quot;Execute program (MS Windows version)&quot;&quot;&quot;<br/>    <br/>        assert not pass_fds, &quot;pass_fds not supported on Windows.&quot;<br/>    <br/>        if not isinstance(args, str):<br/>            args = list2cmdline(args)<br/>    <br/>        # Process startup details<br/>        if startupinfo is None:<br/>            startupinfo = STARTUPINFO()<br/>        else:<br/>            # bpo-34044: Copy STARTUPINFO since it is modified above,<br/>            # so the caller can reuse it multiple times.<br/>            startupinfo = startupinfo._copy()<br/>    <br/>        use_std_handles = -1 not in (p2cread, c2pwrite, errwrite)<br/>        if use_std_handles:<br/>            startupinfo.dwFlags |= _winapi.STARTF_USESTDHANDLES<br/>            startupinfo.hStdInput = p2cread<br/>            startupinfo.hStdOutput = c2pwrite<br/>            startupinfo.hStdError = errwrite<br/>    <br/>        attribute_list = startupinfo.lpAttributeList<br/>        have_handle_list = bool(attribute_list and<br/>                                &quot;handle_list&quot; in attribute_list and<br/>                                attribute_list[&quot;handle_list&quot;])<br/>    <br/>        # If we were given an handle_list or need to create one<br/>        if have_handle_list or (use_std_handles and close_fds):<br/>            if attribute_list is None:<br/>                attribute_list = startupinfo.lpAttributeList = {}<br/>            handle_list = attribute_list[&quot;handle_list&quot;] = \<br/>                list(attribute_list.get(&quot;handle_list&quot;, []))<br/>    <br/>            if use_std_handles:<br/>                handle_list += [int(p2cread), int(c2pwrite), int(errwrite)]<br/>    <br/>            handle_list[:] = self._filter_handle_list(handle_list)<br/>    <br/>            if handle_list:<br/>                if not close_fds:<br/>                    warnings.warn(&quot;startupinfo.lpAttributeList[&#x27;handle_list&#x27;] &quot;<br/>                                  &quot;overriding close_fds&quot;, RuntimeWarning)<br/>    <br/>                # When using the handle_list we always request to inherit<br/>                # handles but the only handles that will be inherited are<br/>                # the ones in the handle_list<br/>                close_fds = False<br/>    <br/>        if shell:<br/>            startupinfo.dwFlags |= _winapi.STARTF_USESHOWWINDOW<br/>            startupinfo.wShowWindow = _winapi.SW_HIDE<br/>            comspec = os.environ.get(&quot;COMSPEC&quot;, &quot;cmd.exe&quot;)<br/>            args = &#x27;{} /c &quot;{}&quot;&#x27;.format (comspec, args)<br/>    <br/>        # Start the process<br/>        try:<br/>            hp, ht, pid, tid = _winapi.CreateProcess(executable, args,<br/>                                     # no special security<br/>                                     None, None,<br/>                                     int(not close_fds),<br/>                                     creationflags,<br/>                                     env,<br/>                                     os.fspath(cwd) if cwd is not None else None,<br/>&gt;                                    startupinfo)<br/><span class="error">E                                    FileNotFoundError: [WinError 2] The system cannot find the file specified</span><br/><br/>..\..\AppData\Local\Programs\Python\Python37\lib\subprocess.py:1178: FileNotFoundError<br/><br/>During handling of the above exception, another exception occurred:<br/><br/>    @mark.ui<br/>    @mark.engine<br/>    @mark.smoke<br/>    def test_can_nav_to_engine_page():<br/>&gt;       browser = webdriver.Chrome()<br/><br/>tests\sports_car\engine\test_engine.py:11: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>myfiles\lib\site-packages\selenium\webdriver\chrome\webdriver.py:73: in __init__<br/>    self.service.start()<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.chrome.service.Service object at 0x0000011C6CEB6688&gt;<br/><br/>    def start(self):<br/>        &quot;&quot;&quot;<br/>        Starts the Service.<br/>    <br/>        :Exceptions:<br/>         - WebDriverException : Raised either when it can&#x27;t start the service<br/>           or when it can&#x27;t connect to the service<br/>        &quot;&quot;&quot;<br/>        try:<br/>            cmd = [self.path]<br/>            cmd.extend(self.command_line_args())<br/>            self.process = subprocess.Popen(cmd, env=self.env,<br/>                                            close_fds=platform.system() != &#x27;Windows&#x27;,<br/>                                            stdout=self.log_file,<br/>                                            stderr=self.log_file,<br/>                                            stdin=PIPE)<br/>        except TypeError:<br/>            raise<br/>        except OSError as err:<br/>            if err.errno == errno.ENOENT:<br/>                raise WebDriverException(<br/>                    &quot;&#x27;%s&#x27; executable needs to be in PATH. %s&quot; % (<br/>&gt;                       os.path.basename(self.path), self.start_error_message)<br/><span class="error">E                       selenium.common.exceptions.WebDriverException: Message: &#x27;chromedriver&#x27; executable needs to be in PATH. Please see https://sites.google.com/a/chromium.org/chromedriver/home</span><br/><br/>myfiles\lib\site-packages\selenium\webdriver\common\service.py:83: WebDriverException<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">tests/sports_car/entertainment/test_entertainment.py::test_can_nav_to_entertainment_page</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;selenium.webdriver.chrome.service.Service object at 0x0000011C6D4C7688&gt;<br/><br/>    def start(self):<br/>        &quot;&quot;&quot;<br/>        Starts the Service.<br/>    <br/>        :Exceptions:<br/>         - WebDriverException : Raised either when it can&#x27;t start the service<br/>           or when it can&#x27;t connect to the service<br/>        &quot;&quot;&quot;<br/>        try:<br/>            cmd = [self.path]<br/>            cmd.extend(self.command_line_args())<br/>            self.process = subprocess.Popen(cmd, env=self.env,<br/>                                            close_fds=platform.system() != &#x27;Windows&#x27;,<br/>                                            stdout=self.log_file,<br/>                                            stderr=self.log_file,<br/>&gt;                                           stdin=PIPE)<br/><br/>myfiles\lib\site-packages\selenium\webdriver\common\service.py:76: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;subprocess.Popen object at 0x0000011C6D4C7708&gt;, args = [&#x27;chromedriver&#x27;, &#x27;--port=58635&#x27;], bufsize = -1, executable = None, stdin = -1, stdout = -3, stderr = -3, preexec_fn = None<br/>close_fds = False, shell = False, cwd = None<br/>env = environ({&#x27;GOOGLE_DEFAULT_CLIENT_SECRET&#x27;: &#x27;no&#x27;, &#x27;LOCALAPPDATA&#x27;: &#x27;C:\\Users\\ajay.kumar\\AppData\\Local&#x27;, &#x27;PROGRAMFILES&#x27;...TEST_CURRENT_TEST&#x27;: &#x27;tests/sports_car/entertainment/test_entertainment.py::test_can_nav_to_entertainment_page (call)&#x27;})<br/>universal_newlines = None, startupinfo = None, creationflags = 0, restore_signals = True, start_new_session = False, pass_fds = ()<br/><br/>    def __init__(self, args, bufsize=-1, executable=None,<br/>                 stdin=None, stdout=None, stderr=None,<br/>                 preexec_fn=None, close_fds=True,<br/>                 shell=False, cwd=None, env=None, universal_newlines=None,<br/>                 startupinfo=None, creationflags=0,<br/>                 restore_signals=True, start_new_session=False,<br/>                 pass_fds=(), *, encoding=None, errors=None, text=None):<br/>        &quot;&quot;&quot;Create new Popen instance.&quot;&quot;&quot;<br/>        _cleanup()<br/>        # Held while anything is calling waitpid before returncode has been<br/>        # updated to prevent clobbering returncode if wait() or poll() are<br/>        # called from multiple threads at once.  After acquiring the lock,<br/>        # code must re-check self.returncode to see if another thread just<br/>        # finished a waitpid() call.<br/>        self._waitpid_lock = threading.Lock()<br/>    <br/>        self._input = None<br/>        self._communication_started = False<br/>        if bufsize is None:<br/>            bufsize = -1  # Restore default<br/>        if not isinstance(bufsize, int):<br/>            raise TypeError(&quot;bufsize must be an integer&quot;)<br/>    <br/>        if _mswindows:<br/>            if preexec_fn is not None:<br/>                raise ValueError(&quot;preexec_fn is not supported on Windows &quot;<br/>                                 &quot;platforms&quot;)<br/>        else:<br/>            # POSIX<br/>            if pass_fds and not close_fds:<br/>                warnings.warn(&quot;pass_fds overriding close_fds.&quot;, RuntimeWarning)<br/>                close_fds = True<br/>            if startupinfo is not None:<br/>                raise ValueError(&quot;startupinfo is only supported on Windows &quot;<br/>                                 &quot;platforms&quot;)<br/>            if creationflags != 0:<br/>                raise ValueError(&quot;creationflags is only supported on Windows &quot;<br/>                                 &quot;platforms&quot;)<br/>    <br/>        self.args = args<br/>        self.stdin = None<br/>        self.stdout = None<br/>        self.stderr = None<br/>        self.pid = None<br/>        self.returncode = None<br/>        self.encoding = encoding<br/>        self.errors = errors<br/>    <br/>        # Validate the combinations of text and universal_newlines<br/>        if (text is not None and universal_newlines is not None<br/>            and bool(universal_newlines) != bool(text)):<br/>            raise SubprocessError(&#x27;Cannot disambiguate when both text &#x27;<br/>                                  &#x27;and universal_newlines are supplied but &#x27;<br/>                                  &#x27;different. Pass one or the other.&#x27;)<br/>    <br/>        # Input and output objects. The general principle is like<br/>        # this:<br/>        #<br/>        # Parent                   Child<br/>        # ------                   -----<br/>        # p2cwrite   ---stdin---&gt;  p2cread<br/>        # c2pread    &lt;--stdout---  c2pwrite<br/>        # errread    &lt;--stderr---  errwrite<br/>        #<br/>        # On POSIX, the child objects are file descriptors.  On<br/>        # Windows, these are Windows file handles.  The parent objects<br/>        # are file descriptors on both platforms.  The parent objects<br/>        # are -1 when not using PIPEs. The child objects are -1<br/>        # when not redirecting.<br/>    <br/>        (p2cread, p2cwrite,<br/>         c2pread, c2pwrite,<br/>         errread, errwrite) = self._get_handles(stdin, stdout, stderr)<br/>    <br/>        # We wrap OS handles *before* launching the child, otherwise a<br/>        # quickly terminating child could make our fds unwrappable<br/>        # (see #8458).<br/>    <br/>        if _mswindows:<br/>            if p2cwrite != -1:<br/>                p2cwrite = msvcrt.open_osfhandle(p2cwrite.Detach(), 0)<br/>            if c2pread != -1:<br/>                c2pread = msvcrt.open_osfhandle(c2pread.Detach(), 0)<br/>            if errread != -1:<br/>                errread = msvcrt.open_osfhandle(errread.Detach(), 0)<br/>    <br/>        self.text_mode = encoding or errors or text or universal_newlines<br/>    <br/>        # How long to resume waiting on a child after the first ^C.<br/>        # There is no right value for this.  The purpose is to be polite<br/>        # yet remain good for interactive users trying to exit a tool.<br/>        self._sigint_wait_secs = 0.25  # 1/xkcd221.getRandomNumber()<br/>    <br/>        self._closed_child_pipe_fds = False<br/>    <br/>        try:<br/>            if p2cwrite != -1:<br/>                self.stdin = io.open(p2cwrite, &#x27;wb&#x27;, bufsize)<br/>                if self.text_mode:<br/>                    self.stdin = io.TextIOWrapper(self.stdin, write_through=True,<br/>                            line_buffering=(bufsize == 1),<br/>                            encoding=encoding, errors=errors)<br/>            if c2pread != -1:<br/>                self.stdout = io.open(c2pread, &#x27;rb&#x27;, bufsize)<br/>                if self.text_mode:<br/>                    self.stdout = io.TextIOWrapper(self.stdout,<br/>                            encoding=encoding, errors=errors)<br/>            if errread != -1:<br/>                self.stderr = io.open(errread, &#x27;rb&#x27;, bufsize)<br/>                if self.text_mode:<br/>                    self.stderr = io.TextIOWrapper(self.stderr,<br/>                            encoding=encoding, errors=errors)<br/>    <br/>            self._execute_child(args, executable, preexec_fn, close_fds,<br/>                                pass_fds, cwd, env,<br/>                                startupinfo, creationflags, shell,<br/>                                p2cread, p2cwrite,<br/>                                c2pread, c2pwrite,<br/>                                errread, errwrite,<br/>&gt;                               restore_signals, start_new_session)<br/><br/>..\..\AppData\Local\Programs\Python\Python37\lib\subprocess.py:775: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;subprocess.Popen object at 0x0000011C6D4C7708&gt;, args = &#x27;chromedriver --port=58635&#x27;, executable = None, preexec_fn = None, close_fds = False, pass_fds = (), cwd = None<br/>env = environ({&#x27;GOOGLE_DEFAULT_CLIENT_SECRET&#x27;: &#x27;no&#x27;, &#x27;LOCALAPPDATA&#x27;: &#x27;C:\\Users\\ajay.kumar\\AppData\\Local&#x27;, &#x27;PROGRAMFILES&#x27;...TEST_CURRENT_TEST&#x27;: &#x27;tests/sports_car/entertainment/test_entertainment.py::test_can_nav_to_entertainment_page (call)&#x27;})<br/>startupinfo = &lt;subprocess.STARTUPINFO object at 0x0000011C6D4C7788&gt;, creationflags = 0, shell = False, p2cread = Handle(880), p2cwrite = 14, c2pread = -1, c2pwrite = Handle(624)<br/>errread = -1, errwrite = Handle(804), unused_restore_signals = True, unused_start_new_session = False<br/><br/>    def _execute_child(self, args, executable, preexec_fn, close_fds,<br/>                       pass_fds, cwd, env,<br/>                       startupinfo, creationflags, shell,<br/>                       p2cread, p2cwrite,<br/>                       c2pread, c2pwrite,<br/>                       errread, errwrite,<br/>                       unused_restore_signals, unused_start_new_session):<br/>        &quot;&quot;&quot;Execute program (MS Windows version)&quot;&quot;&quot;<br/>    <br/>        assert not pass_fds, &quot;pass_fds not supported on Windows.&quot;<br/>    <br/>        if not isinstance(args, str):<br/>            args = list2cmdline(args)<br/>    <br/>        # Process startup details<br/>        if startupinfo is None:<br/>            startupinfo = STARTUPINFO()<br/>        else:<br/>            # bpo-34044: Copy STARTUPINFO since it is modified above,<br/>            # so the caller can reuse it multiple times.<br/>            startupinfo = startupinfo._copy()<br/>    <br/>        use_std_handles = -1 not in (p2cread, c2pwrite, errwrite)<br/>        if use_std_handles:<br/>            startupinfo.dwFlags |= _winapi.STARTF_USESTDHANDLES<br/>            startupinfo.hStdInput = p2cread<br/>            startupinfo.hStdOutput = c2pwrite<br/>            startupinfo.hStdError = errwrite<br/>    <br/>        attribute_list = startupinfo.lpAttributeList<br/>        have_handle_list = bool(attribute_list and<br/>                                &quot;handle_list&quot; in attribute_list and<br/>                                attribute_list[&quot;handle_list&quot;])<br/>    <br/>        # If we were given an handle_list or need to create one<br/>        if have_handle_list or (use_std_handles and close_fds):<br/>            if attribute_list is None:<br/>                attribute_list = startupinfo.lpAttributeList = {}<br/>            handle_list = attribute_list[&quot;handle_list&quot;] = \<br/>                list(attribute_list.get(&quot;handle_list&quot;, []))<br/>    <br/>            if use_std_handles:<br/>                handle_list += [int(p2cread), int(c2pwrite), int(errwrite)]<br/>    <br/>            handle_list[:] = self._filter_handle_list(handle_list)<br/>    <br/>            if handle_list:<br/>                if not close_fds:<br/>                    warnings.warn(&quot;startupinfo.lpAttributeList[&#x27;handle_list&#x27;] &quot;<br/>                                  &quot;overriding close_fds&quot;, RuntimeWarning)<br/>    <br/>                # When using the handle_list we always request to inherit<br/>                # handles but the only handles that will be inherited are<br/>                # the ones in the handle_list<br/>                close_fds = False<br/>    <br/>        if shell:<br/>            startupinfo.dwFlags |= _winapi.STARTF_USESHOWWINDOW<br/>            startupinfo.wShowWindow = _winapi.SW_HIDE<br/>            comspec = os.environ.get(&quot;COMSPEC&quot;, &quot;cmd.exe&quot;)<br/>            args = &#x27;{} /c &quot;{}&quot;&#x27;.format (comspec, args)<br/>    <br/>        # Start the process<br/>        try:<br/>            hp, ht, pid, tid = _winapi.CreateProcess(executable, args,<br/>                                     # no special security<br/>                                     None, None,<br/>                                     int(not close_fds),<br/>                                     creationflags,<br/>                                     env,<br/>                                     os.fspath(cwd) if cwd is not None else None,<br/>&gt;                                    startupinfo)<br/><span class="error">E                                    FileNotFoundError: [WinError 2] The system cannot find the file specified</span><br/><br/>..\..\AppData\Local\Programs\Python\Python37\lib\subprocess.py:1178: FileNotFoundError<br/><br/>During handling of the above exception, another exception occurred:<br/><br/>    @mark.ui<br/>    @mark.entertainment<br/>    <br/>    def test_can_nav_to_entertainment_page():<br/>&gt;       browser = webdriver.Chrome()<br/><br/>tests\sports_car\entertainment\test_entertainment.py:10: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>myfiles\lib\site-packages\selenium\webdriver\chrome\webdriver.py:73: in __init__<br/>    self.service.start()<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.chrome.service.Service object at 0x0000011C6D4C7688&gt;<br/><br/>    def start(self):<br/>        &quot;&quot;&quot;<br/>        Starts the Service.<br/>    <br/>        :Exceptions:<br/>         - WebDriverException : Raised either when it can&#x27;t start the service<br/>           or when it can&#x27;t connect to the service<br/>        &quot;&quot;&quot;<br/>        try:<br/>            cmd = [self.path]<br/>            cmd.extend(self.command_line_args())<br/>            self.process = subprocess.Popen(cmd, env=self.env,<br/>                                            close_fds=platform.system() != &#x27;Windows&#x27;,<br/>                                            stdout=self.log_file,<br/>                                            stderr=self.log_file,<br/>                                            stdin=PIPE)<br/>        except TypeError:<br/>            raise<br/>        except OSError as err:<br/>            if err.errno == errno.ENOENT:<br/>                raise WebDriverException(<br/>                    &quot;&#x27;%s&#x27; executable needs to be in PATH. %s&quot; % (<br/>&gt;                       os.path.basename(self.path), self.start_error_message)<br/><span class="error">E                       selenium.common.exceptions.WebDriverException: Message: &#x27;chromedriver&#x27; executable needs to be in PATH. Please see https://sites.google.com/a/chromium.org/chromedriver/home</span><br/><br/>myfiles\lib\site-packages\selenium\webdriver\common\service.py:83: WebDriverException<br/></div></td></tr></tbody></table></body></html>

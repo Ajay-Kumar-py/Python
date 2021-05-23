@@ -1,0 +1,5 @@
+,Region,Country,Item Type,Sales Channel,Order Priority,Order Date,Order ID,Ship Date,Units Sold,Unit Price,Unit Cost,Total Revenue,Total Cost,Total Profit
+200,Asia,China,Personal Care,Online,L,9/11/2012,637448060.0,9/15/2012,3901.0,81.73,56.67,318828.73,221069.67,97759.06
+331,Asia,China,Vegetables,Online,H,9/05/2010,737816321.0,9/21/2010,5100.0,154.06,90.93,785706.0,463743.0,321963.0
+504,Asia,China,Office Supplies,Online,C,9/30/2015,893779695.0,11/07/2015,8128.0,651.21,524.96,5293034.88,4266874.88,1026160.0
+5,,,,,,,,,,,,,To00tal,1445882.06
